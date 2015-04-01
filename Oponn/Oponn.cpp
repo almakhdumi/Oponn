@@ -38,7 +38,8 @@ void Oponn::Detach()
 	isRunning = false;
 	
 	//Write back all the original instructions
-	for(map<FARPROC, unsigned char>::iterator iter = instructions.begin(); iter != instructions.end(); ++iter) {
+	for(map<FARPROC, unsigned char>::iterator iter = instructions.begin(); iter != instructions.end(); ++iter)
+	{
 		WriteProcessMemory(hProcess, (void*) iter->first, &(iter->second), sizeof(iter->second), 0);
 		FlushInstructionCache(hProcess, (void*) iter->first, 1); //Make sure the instruction cache is updated
 	}
@@ -55,8 +56,8 @@ HMODULE Oponn::GetModuleHandle(const char* nameOfModule, bool useCache)
 	if (!moduleName)
 	{
 		GetModuleBaseName(hProcess, hModule, temp, MAX_PATH);
-		moduleName = new char[strlen(temp)+1];
-		strcpy(moduleName, temp);
+		moduleName = new char[strlen(temp) + 1];
+		strcpy_s(moduleName, strlen(temp) + 1, temp);
 	}
 
 	if (useCache && moduleCache.count(moduleName))
@@ -83,7 +84,8 @@ FARPROC Oponn::GetFunctionAddress(const char* funcName, const char* moduleName)
 	pair<HMODULE, const char*> func(hModule, funcName);
 	if (functionCache.count(func))
 		return functionCache[func];
-	else {
+	else
+	{
 		FARPROC addr = GetRemoteProcAddress(hProcess, hModule, funcName);
 		if (addr) functionCache[func] = addr;
 		return addr;
@@ -161,7 +163,8 @@ void Oponn::StartIntercepting()
 
 		FARPROC addr = (FARPROC)DebugEv.u.Exception.ExceptionRecord.ExceptionAddress;
 
-		switch (DebugEv.dwDebugEventCode) { 
+		switch (DebugEv.dwDebugEventCode)
+		{ 
 		case EXCEPTION_DEBUG_EVENT: 
 
 			switch(DebugEv.u.Exception.ExceptionRecord.ExceptionCode)
