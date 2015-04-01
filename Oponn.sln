@@ -5,6 +5,8 @@ VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Oponn", "Oponn\Oponn.vcxproj", "{959B883D-3265-4C5A-AFD3-99409620E298}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Oponn.Net", "Oponn.Net\Oponn.Net.vcxproj", "{2065EF74-A48D-46F9-8EFC-DB06D187CC16}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -21,6 +23,12 @@ Global
 		{959B883D-3265-4C5A-AFD3-99409620E298}.Release|Win32.Build.0 = Release|Win32
 		{959B883D-3265-4C5A-AFD3-99409620E298}.Release|x64.ActiveCfg = Release|x64
 		{959B883D-3265-4C5A-AFD3-99409620E298}.Release|x64.Build.0 = Release|x64
+		{2065EF74-A48D-46F9-8EFC-DB06D187CC16}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2065EF74-A48D-46F9-8EFC-DB06D187CC16}.Debug|Win32.Build.0 = Debug|Win32
+		{2065EF74-A48D-46F9-8EFC-DB06D187CC16}.Debug|x64.ActiveCfg = Debug|Win32
+		{2065EF74-A48D-46F9-8EFC-DB06D187CC16}.Release|Win32.ActiveCfg = Release|Win32
+		{2065EF74-A48D-46F9-8EFC-DB06D187CC16}.Release|Win32.Build.0 = Release|Win32
+		{2065EF74-A48D-46F9-8EFC-DB06D187CC16}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
