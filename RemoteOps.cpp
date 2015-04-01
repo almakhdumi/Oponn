@@ -31,11 +31,7 @@ HMODULE WINAPI GetRemoteModuleHandle(HANDLE hProcess, LPCSTR lpModuleName)
 	/* Convert lpModuleName to all lowercase so the comparison isn't case sensitive */
 	for (size_t i = 0; lpModuleName[i] != '\0'; ++i)
 	{
-		if (lpModuleName[i] >= 'A' && lpModuleName[i] <= 'Z')
-			lpModuleNameCopy[i] = lpModuleName[i] + 0x20; // 0x20 is the difference between uppercase and lowercase
-		else
-			lpModuleNameCopy[i] = lpModuleName[i];
- 
+		lpModuleNameCopy[i] = tolower(lpModuleName[i]);
 		lpModuleNameCopy[i+1] = '\0';
 	}
 	
@@ -84,10 +80,9 @@ HMODULE WINAPI GetRemoteModuleHandle(HANDLE hProcess, LPCSTR lpModuleName)
 			ModuleNameBuffer, sizeof(ModuleNameBuffer));
  
 		/* Convert ModuleNameBuffer to all lowercase so the comparison isn't case sensitive */
-		for (size_t j = 0; ModuleNameBuffer[j] != '\0'; ++i)
+		for (size_t j = 0; ModuleNameBuffer[j] != '\0'; ++j)
 		{
-			if (ModuleNameBuffer[j] >= 'A' && ModuleNameBuffer[i] <= 'Z')
-				ModuleNameBuffer[j] += 0x20; // 0x20 is the difference between uppercase and lowercase
+			ModuleNameBuffer[j] = tolower(ModuleNameBuffer[j]);
 		}
  
 		/* Does the name match? */
