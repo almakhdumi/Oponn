@@ -13,6 +13,14 @@ typedef bool (*OPONN_CALLBACK) (LPCONTEXT pContext);
 
 using namespace std;
 
+struct OponnIntercept
+{
+	// First byte of instruction, kept as a backup
+	BYTE instructionByte;
+	// 
+	OPONN_CALLBACK callback;
+};
+
 class Oponn : public IOponn {
 public:
 	bool Attach(const char* windowTitle);
@@ -58,8 +66,6 @@ public:
 	~Oponn() { Detach(); }
 
 private:
-	//Internally used for stopping interceptions
-	//BOOL stopSignal;
 	//Internally used for initial 'install' of breakpoints 
 	bool hasInstalled;
 	//Whether or not intercept callbacks are enabled
@@ -74,10 +80,8 @@ private:
 	map<const char*, HMODULE> moduleCache;
 	//Cache of function addresses
 	map<pair<HMODULE,const char*>, FARPROC> functionCache;
-	//Intercept callbacks
-	map<FARPROC, OPONN_CALLBACK> callbacks;
-	//Original intercept instructions
-	map<FARPROC, unsigned char> instructions;	
+	//Intercepts
+	map<FARPROC, OponnIntercept> intercepts;
 };
 
 

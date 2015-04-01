@@ -5,9 +5,9 @@
 #include "oponn.h"
 
 #ifdef _WIN64
-	#define PC Rip
+#define PC Rip
 #elif _WIN32
-	#define PC Eip
+#define PC Eip
 #endif
 
 bool Oponn::Attach(const char* windowTitle)
@@ -42,12 +42,12 @@ void Oponn::Detach()
 {
 	DebugActiveProcessStop(processId);
 	isRunning = false;
-	
+
 	// Write back all the original instructions
-	for(map<FARPROC, unsigned char>::iterator iter = instructions.begin(); iter != instructions.end(); ++iter)
+	for (map<FARPROC, OponnIntercept>::iterator iter = intercepts.begin(); iter != intercepts.end(); ++iter)
 	{
-		WriteProcessMemory(hProcess, (void*) iter->first, &(iter->second), sizeof(iter->second), 0);
-		FlushInstructionCache(hProcess, (void*) iter->first, 1); // Make sure the instruction cache is updated
+		WriteProcessMemory(hProcess, (void*)iter->first, &(iter->second.instructionByte), sizeof(iter->second.instructionByte), 0);
+		FlushInstructionCache(hProcess, (void*)iter->first, 1); // Make sure the instruction cache is updated
 	}
 	hProcess = NULL;
 }
@@ -55,7 +55,7 @@ void Oponn::Detach()
 HMODULE Oponn::GetModuleHandle(const char* nameOfModule, bool useCache)
 {
 	static char temp[MAX_PATH]; // for getting module names
-	char* moduleName = (char*) nameOfModule;
+	char* moduleName = (char*)nameOfModule;
 	HMODULE hModule = NULL;
 
 	// If no module was specified, get the name of the process itself
@@ -77,7 +77,7 @@ HMODULE Oponn::GetModuleHandle(const char* nameOfModule, bool useCache)
 			moduleCache[moduleName] = hModule;
 		// If we aren't saving the module but allocated space, delete it
 		else if (nameOfModule != moduleName)
-			delete [] moduleName;
+			delete[] moduleName;
 	}
 	return hModule;
 }
@@ -100,20 +100,19 @@ FARPROC Oponn::GetFunctionAddress(const char* funcName, const char* moduleName)
 
 void Oponn::RemoveIntercept(FARPROC address)
 {
-	if (!instructions.count(address)) return;
+	if (!intercepts.count(address)) return;
 	bool tempInterceptsEnabled = IsInterceptsEnabled();
 	SetInterceptsEnabled(false); // Temporarily disable intercepts
 
 	// Overwrite the INT3 breakpoint with the old data
-	char instr = instructions[address];
-	WriteMemory(address, &instr, sizeof(instr));
+	BYTE instructionByte = intercepts[address].instructionByte;
+	WriteMemory(address, &instructionByte, sizeof(instructionByte));
 
-	instructions.erase(address);
-	callbacks.erase(address);
+	intercepts.erase(address);
 
 	SetInterceptsEnabled(tempInterceptsEnabled); // Restart intercepts, if they were enabled
 }
-	
+
 void Oponn::AddIntercept(OPONN_CALLBACK callback, const char* funcName, const char* moduleName)
 {
 	FARPROC address = GetFunctionAddress(funcName, moduleName);
@@ -126,16 +125,15 @@ void Oponn::AddIntercept(OPONN_CALLBACK callback, FARPROC address)
 	RemoveIntercept(address);
 
 	// Store the instruction byte as it is now
-	unsigned char instr;
-	ReadMemory(address, &instr, sizeof(instr));
-	instructions[address] = instr;
-	
+	OponnIntercept intercept = { 0, callback };
+	ReadMemory(address, &address, sizeof(address));
+
 	// Write the breakpoint
-	instr = INT3_BP;
-	WriteMemory(address, &instr, sizeof(instr));
-	
-	// Add the callback
-	callbacks[address] = callback;
+	unsigned char bpInstr = INT3_BP;
+	WriteMemory(address, &bpInstr, sizeof(bpInstr));
+
+	// Add the intercept
+	intercepts[address] = intercept;
 }
 
 bool Oponn::ReadMemory(FARPROC address, LPVOID buffer, SIZE_T size, SIZE_T* pNumBytesRead)
@@ -150,34 +148,33 @@ bool Oponn::WriteMemory(FARPROC address, LPVOID buffer, SIZE_T size, SIZE_T* pNu
 
 void Oponn::StartIntercepting()
 {
-	static const unsigned char bpInstr = INT3_BP;
-
 	if (isRunning) return;
 
+	static const unsigned char bpInstr = INT3_BP;
 	DEBUG_EVENT DebugEv;
+	FARPROC lastAddress = NULL;
 
 	isRunning = true;
 	isInterceptsEnabled = true;
 	hasInstalled = false;
-	// stopSignal = false;
 
-	while (true)
+	while (isRunning)
 	{
-		
+
 		if (!WaitForDebugEvent(&DebugEv, DEBUG_EVENT_WAIT_MS))
 			continue; // Continue loop on event wait timeout
 
-		FARPROC addr = (FARPROC)DebugEv.u.Exception.ExceptionRecord.ExceptionAddress;
+		FARPROC address = (FARPROC)DebugEv.u.Exception.ExceptionRecord.ExceptionAddress;
 
 		switch (DebugEv.dwDebugEventCode)
-		{ 
-		case EXCEPTION_DEBUG_EVENT: 
+		{
+		case EXCEPTION_DEBUG_EVENT:
 
-			switch(DebugEv.u.Exception.ExceptionRecord.ExceptionCode)
-			{ 
+			switch (DebugEv.u.Exception.ExceptionRecord.ExceptionCode)
+			{
 			case EXCEPTION_ACCESS_VIOLATION: break;
 
-			case EXCEPTION_BREAKPOINT: 
+			case EXCEPTION_BREAKPOINT:
 				// The very first breakpoint occurs when we attach, so this is 
 				// when we replace the intercept instructions with INT3 breakpoints
 				if (!hasInstalled)
@@ -185,10 +182,9 @@ void Oponn::StartIntercepting()
 					hasInstalled = true;
 					// The instructions are already backed up in the instructions map 
 					// so we only need to write the breakpoints
-					for(map<FARPROC, unsigned char>::iterator iter = instructions.begin(); iter != instructions.end(); ++iter)
-					{
-						WriteProcessMemory(hProcess, (void*) iter->first, &bpInstr, sizeof(bpInstr), 0);
-						FlushInstructionCache(hProcess, (void*) iter->first, 1); // Make sure the instruction cache is updated
+					for (map<FARPROC, OponnIntercept>::iterator iter = intercepts.begin(); iter != intercepts.end(); ++iter) {
+						WriteProcessMemory(hProcess, (void*)iter->first, &bpInstr, sizeof(bpInstr), 0);
+						FlushInstructionCache(hProcess, (void*)iter->first, 1); // Make sure the instruction cache is updated
 					}
 				}
 				// We've hit a real breakpoint here, so now it's just a matter of calling the right
@@ -196,7 +192,7 @@ void Oponn::StartIntercepting()
 				else
 				{
 					HANDLE hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, DebugEv.dwThreadId);
-					
+
 					// Get the thread context
 					CONTEXT context;
 					context.ContextFlags = CONTEXT_ALL;
@@ -205,16 +201,16 @@ void Oponn::StartIntercepting()
 					// Now get and call the callback function for this intercept
 					if (isInterceptsEnabled)
 					{
-						OPONN_CALLBACK callback = callbacks[addr];
+						OPONN_CALLBACK callback = intercepts[address].callback;
 						callback(&context);
 					}
 
 					// Write the original instruction back and reduce EIP (the PC) by 1 byte,
 					// which will cause the original instruction to execute
-					unsigned char instr = instructions[addr];
+					BYTE instructionByte = intercepts[address].instructionByte;
 					context.PC--;
-					WriteProcessMemory(hProcess, (void*) addr, &instr, sizeof(instr), 0);
-					FlushInstructionCache(hProcess, (void*) addr, 1); // Make sure the instruction cache is updated
+					WriteProcessMemory(hProcess, (void*)address, &instructionByte, sizeof(instructionByte), 0);
+					FlushInstructionCache(hProcess, (void*)address, 1); // Make sure the instruction cache is updated
 
 					// We also have to set the trap flag so that we can break again right
 					// after the original instruction is executed and re-write the breakpoint
@@ -222,71 +218,74 @@ void Oponn::StartIntercepting()
 
 					// Finally write the thread context back
 					SetThreadContext(hThread, &context);
+
+					lastAddress = address;
 				}
 				break;
 
 
-			case EXCEPTION_SINGLE_STEP: 
+			case EXCEPTION_SINGLE_STEP:
+			{
 				// This exception occurs after we set the trap flag
 				// so we write back the breakpoint if it still exists
-				if (instructions.count(addr) > 0)
+				if (lastAddress != NULL && intercepts.count(lastAddress))
 				{
-					WriteProcessMemory(hProcess, (void*) addr, &bpInstr, sizeof(bpInstr), 0);
-					FlushInstructionCache(hProcess, (void*) addr, 1); // Make sure the instruction cache is updated
+					WriteProcessMemory(hProcess, (void*)lastAddress, &bpInstr, sizeof(bpInstr), 0);
+					FlushInstructionCache(hProcess, (void*)lastAddress, 1); // Make sure the instruction cache is updated
 				}
-				break;
 
+				lastAddress = NULL;
+				break;
+			}
 			case EXCEPTION_DATATYPE_MISALIGNMENT: break;
 			case DBG_CONTROL_C: break;
 			default: break;
-			} 
+			}
 
 			break;
 
-		case CREATE_THREAD_DEBUG_EVENT: 
+		case CREATE_THREAD_DEBUG_EVENT:
 			// New thread created. Can examine and do stuff here.
 			// TODO: add option for intercepting thread creation too
 			break;
 
-		case CREATE_PROCESS_DEBUG_EVENT: 
+		case CREATE_PROCESS_DEBUG_EVENT:
 			break;
 
-		case EXIT_THREAD_DEBUG_EVENT: 
+		case EXIT_THREAD_DEBUG_EVENT:
 			// TODO: add intercepts for thread exit
 			break;
 
-		case EXIT_PROCESS_DEBUG_EVENT: 
+		case EXIT_PROCESS_DEBUG_EVENT:
 			// TODO: add intercepts for process exit
 			break;
 
-		case LOAD_DLL_DEBUG_EVENT: 
+		case LOAD_DLL_DEBUG_EVENT:
 			// TODO: add intercepts for dll loading
 			break;
 
-		case UNLOAD_DLL_DEBUG_EVENT: 
+		case UNLOAD_DLL_DEBUG_EVENT:
 			// TODO: add intercepts for dll unloading
 			break;
 
-		case OUTPUT_DEBUG_STRING_EVENT: 
-			// add option to print out debugged strings?
+		case OUTPUT_DEBUG_STRING_EVENT:
+			// TODO: Add option to print out debugged strings?
 			break;
 
 		case RIP_EVENT:
-			// no idea what this is. MSDNA says "system debugging error" - fatal debug error?
+			// No idea what this is. MSDN says "system debugging error" - fatal debug error?
 			break;
-		} 
+		}
 
 		// Resume the thread
-		ContinueDebugEvent(DebugEv.dwProcessId, 
-				DebugEv.dwThreadId, 
-				DBG_CONTINUE);
+		ContinueDebugEvent(DebugEv.dwProcessId,
+			DebugEv.dwThreadId,
+			DBG_CONTINUE);
 	}
-
+	isRunning = false; // Really can't get here but just to keep with the meaning :)
 }
 
 extern "C" OPONNAPI IOponn* CreateOponn()
 {
 	return new Oponn();
 }
-
-#undef PC
