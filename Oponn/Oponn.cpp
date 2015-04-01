@@ -4,6 +4,12 @@
 #include "ioponn.h"
 #include "oponn.h"
 
+#ifdef _WIN64
+	#define PC Rip
+#elif _WIN32
+	#define PC Eip
+#endif
+
 bool Oponn::Attach(const char* windowTitle)
 {
 	return Attach(FindWindow(NULL, windowTitle));
@@ -206,7 +212,7 @@ void Oponn::StartIntercepting()
 					// Write the original instruction back and reduce EIP (the PC) by 1 byte,
 					// which will cause the original instruction to execute
 					unsigned char instr = instructions[addr];
-					context.Eip--;
+					context.PC--;
 					WriteProcessMemory(hProcess, (void*) addr, &instr, sizeof(instr), 0);
 					FlushInstructionCache(hProcess, (void*) addr, 1); // Make sure the instruction cache is updated
 
@@ -282,3 +288,5 @@ extern "C" OPONNAPI IOponn* CreateOponn()
 {
 	return new Oponn();
 }
+
+#undef PC
