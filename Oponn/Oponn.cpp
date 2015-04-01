@@ -4,15 +4,13 @@
 #include "ioponn.h"
 #include "oponn.h"
 
-//Searches for a window with the given title and attaches to it
-//Returns false on failure, true on success
-bool Oponn::Attach(const char* windowTitle) {
+bool Oponn::Attach(const char* windowTitle)
+{
 	return Attach(FindWindow(NULL, windowTitle));
 }
 
-//Attaches to the process of the given window 
-//Returns false on failure, true on success
-bool Oponn::Attach(HWND hWnd) {
+bool Oponn::Attach(HWND hWnd)
+{
 	if (hWnd == NULL) return false;
 	DWORD processId = NULL;
 	GetWindowThreadProcessId(hWnd, &processId);
@@ -20,9 +18,8 @@ bool Oponn::Attach(HWND hWnd) {
 	return Attach(processId);
 }
 
-//Attaches to the given process
-//Returns false on failure, true on success
-bool Oponn::Attach(DWORD processId) {
+bool Oponn::Attach(DWORD processId)
+{
 	if (hProcess) return false;
 
 	hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
@@ -34,8 +31,9 @@ bool Oponn::Attach(DWORD processId) {
 	return true;
 }
 
-//Detaches from the current process
-void Oponn::Detach() {
+
+void Oponn::Detach()
+{
 	DebugActiveProcessStop(processId);
 	isRunning = false;
 	
@@ -47,23 +45,26 @@ void Oponn::Detach() {
 	hProcess = NULL;
 }
 
-//Returns the handlet of the given module, if it has been loaded
-//Otherwise returns NULL
-HMODULE Oponn::GetModuleHandle(const char* nameOfModule, bool useCache) {
+HMODULE Oponn::GetModuleHandle(const char* nameOfModule, bool useCache)
+{
 	static char temp[MAX_PATH]; //for getting module names
 	char* moduleName = (char*) nameOfModule;
 	HMODULE hModule = NULL;
 
 	//If no module was specified, get the name of the process itself
-	if (!moduleName) {
+	if (!moduleName)
+	{
 		GetModuleBaseName(hProcess, hModule, temp, MAX_PATH);
 		moduleName = new char[strlen(temp)+1];
 		strcpy(moduleName, temp);
 	}
 
 	if (useCache && moduleCache.count(moduleName))
+	{
 		hModule = moduleCache[moduleName];
-	else {
+	}
+	else
+	{
 		HMODULE hModule = GetRemoteModuleHandle(hProcess, moduleName);
 		if (hModule)
 			moduleCache[moduleName] = hModule;
@@ -74,11 +75,8 @@ HMODULE Oponn::GetModuleHandle(const char* nameOfModule, bool useCache) {
 	return hModule;
 }
 
-//Returns the address of the given function/module. If the module name is iomitted,
-//the function is looked for in the process's main module
-//Note: No option for whether or not to use the cache is provided since function addresses don't
-//change within a module
-FARPROC Oponn::GetFunctionAddress(const char* funcName, const char* moduleName) {
+FARPROC Oponn::GetFunctionAddress(const char* funcName, const char* moduleName)
+{
 	HMODULE hModule = GetModuleHandle(moduleName);
 	if (!hModule) return NULL;
 
@@ -92,8 +90,8 @@ FARPROC Oponn::GetFunctionAddress(const char* funcName, const char* moduleName) 
 	}
 }
 
-//Removes the intercept at the given address
-void Oponn::RemoveIntercept(FARPROC address) {
+void Oponn::RemoveIntercept(FARPROC address)
+{
 	if (!instructions.count(address)) return;
 	bool tempInterceptsEnabled = IsInterceptsEnabled();
 	SetInterceptsEnabled(false); //Temporarily disable intercepts
@@ -108,15 +106,14 @@ void Oponn::RemoveIntercept(FARPROC address) {
 	SetInterceptsEnabled(tempInterceptsEnabled); //Restart intercepts, if they were enabled
 }
 	
-//Adds an intercept at the given function of the given module. If the module name
-//is omitted, the function is looked for in the process's main module
-void Oponn::AddIntercept(OPONN_CALLBACK callback, const char* funcName, const char* moduleName) {
+void Oponn::AddIntercept(OPONN_CALLBACK callback, const char* funcName, const char* moduleName)
+{
 	FARPROC address = GetFunctionAddress(funcName, moduleName);
 	AddIntercept(callback, address);
 }
 
-//Adds an intercept at the given address
-void Oponn::AddIntercept(OPONN_CALLBACK callback, FARPROC address) {
+void Oponn::AddIntercept(OPONN_CALLBACK callback, FARPROC address)
+{
 	//Remove any existing intercept
 	RemoveIntercept(address);
 
@@ -133,17 +130,18 @@ void Oponn::AddIntercept(OPONN_CALLBACK callback, FARPROC address) {
 	callbacks[address] = callback;
 }
 
-//Reads the process's memory into the given buffer. Returns number of bytes read
-bool Oponn::ReadMemory(FARPROC address, LPVOID buffer, SIZE_T size, SIZE_T* pNumBytesRead) {
+bool Oponn::ReadMemory(FARPROC address, LPVOID buffer, SIZE_T size, SIZE_T* pNumBytesRead)
+{
 	return ReadProcessMemory(hProcess, address, buffer, size, pNumBytesRead) ? true : false;
 }
 
-//Writes the given buffer to the process's memory. Returns number of bytes written
-bool Oponn::WriteMemory(FARPROC address, LPVOID buffer, SIZE_T size, SIZE_T* pNumBytesWritten) {
+bool Oponn::WriteMemory(FARPROC address, LPVOID buffer, SIZE_T size, SIZE_T* pNumBytesWritten)
+{
 	return WriteProcessMemory(hProcess, address, buffer, size, pNumBytesWritten) ? true : false;
 }
 
-void Oponn::StartIntercepting() {
+void Oponn::StartIntercepting()
+{
 	static const unsigned char bpInstr = INT3_BP;
 
 	if (isRunning) return;
@@ -155,15 +153,11 @@ void Oponn::StartIntercepting() {
 	hasInstalled = false;
 	//stopSignal = false;
 
-	while (true) {
+	while (true)
+	{
 		
 		if (!WaitForDebugEvent(&DebugEv, DEBUG_EVENT_WAIT_MS))
 			continue; //Continue loop on event wait timeout
-
-		//if (stopSignal == true) {
-		//	ContinueDebugEvent(DebugEv.dwProcessId, DebugEv.dwThreadId, DBG_CONTINUE);
-		//	return;
-		//}
 
 		FARPROC addr = (FARPROC)DebugEv.u.Exception.ExceptionRecord.ExceptionAddress;
 
@@ -177,18 +171,21 @@ void Oponn::StartIntercepting() {
 			case EXCEPTION_BREAKPOINT: 
 				//The very first breakpoint occurs when we attach, so this is 
 				//when we replace the intercept instructions with INT3 breakpoints
-				if (!hasInstalled) {
+				if (!hasInstalled)
+				{
 					hasInstalled = true;
 					//The instructions are already backed up in the instructions map 
 					//so we only need to write the breakpoints
-					for(map<FARPROC, unsigned char>::iterator iter = instructions.begin(); iter != instructions.end(); ++iter) {
+					for(map<FARPROC, unsigned char>::iterator iter = instructions.begin(); iter != instructions.end(); ++iter)
+					{
 						WriteProcessMemory(hProcess, (void*) iter->first, &bpInstr, sizeof(bpInstr), 0);
 						FlushInstructionCache(hProcess, (void*) iter->first, 1); //Make sure the instruction cache is updated
 					}
 				}
 				//We've hit a real breakpoint here, so now it's just a matter of calling the right
 				//callback function, executing the original instruction, and rewriting the breakpoint
-				else {
+				else
+				{
 					HANDLE hThread = OpenThread(THREAD_ALL_ACCESS, FALSE, DebugEv.dwThreadId);
 					
 					//Get the thread context
@@ -197,7 +194,8 @@ void Oponn::StartIntercepting() {
 					GetThreadContext(hThread, &context);
 
 					//Now get and call the callback function for this intercept
-					 if (isInterceptsEnabled) {
+					if (isInterceptsEnabled)
+					{
 						OPONN_CALLBACK callback = callbacks[addr];
 						callback(&context);
 					}
@@ -222,7 +220,8 @@ void Oponn::StartIntercepting() {
 			case EXCEPTION_SINGLE_STEP: 
 				//This exception occurs after we set the trap flag
 				//so we write back the breakpoint if it still exists
-				if (instructions.count(addr) > 0) {
+				if (instructions.count(addr) > 0)
+				{
 					WriteProcessMemory(hProcess, (void*) addr, &bpInstr, sizeof(bpInstr), 0);
 					FlushInstructionCache(hProcess, (void*) addr, 1); //Make sure the instruction cache is updated
 				}
@@ -276,6 +275,7 @@ void Oponn::StartIntercepting() {
 
 }
 
-extern "C" OPONNAPI IOponn* CreateOponn() {
+extern "C" OPONNAPI IOponn* CreateOponn()
+{
 	return new Oponn();
 }
