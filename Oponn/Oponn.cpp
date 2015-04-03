@@ -18,9 +18,10 @@ bool Oponn::Attach(const char* windowTitle)
 bool Oponn::Attach(HWND hWnd)
 {
 	if (hWnd == NULL) return false;
-	DWORD processId = NULL;
+	processId = NULL;
 	GetWindowThreadProcessId(hWnd, &processId);
 	if (processId == NULL) return false;
+
 	return Attach(processId);
 }
 
@@ -34,22 +35,28 @@ bool Oponn::Attach(DWORD processId)
 	if (!DebugActiveProcess(processId)) return false;
 	DebugSetProcessKillOnExit(FALSE); // Don't kill the process if we exit
 
+	this->processId = processId;
+
 	return true;
 }
 
-
-void Oponn::Detach()
+bool Oponn::Detach()
 {
-	DebugActiveProcessStop(processId);
 	isRunning = false;
-
 	// Write back all the original instructions
 	for (map<FARPROC, OponnIntercept>::iterator iter = intercepts.begin(); iter != intercepts.end(); ++iter)
 	{
 		WriteProcessMemory(hProcess, (void*)iter->first, &(iter->second.instructionByte), sizeof(iter->second.instructionByte), 0);
 		FlushInstructionCache(hProcess, (void*)iter->first, 1); // Make sure the instruction cache is updated
 	}
+	
+	bool detachSuccess = DebugActiveProcessStop(processId) != NULL;
+
+	processId = 0;
+	CloseHandle(hProcess);
 	hProcess = NULL;
+
+	return detachSuccess;
 }
 
 HMODULE Oponn::GetModuleHandle(const char* nameOfModule, bool useCache)

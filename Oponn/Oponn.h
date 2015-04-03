@@ -21,7 +21,8 @@ struct OponnIntercept
 	OPONN_CALLBACK callback;
 };
 
-class Oponn : public IOponn {
+class Oponn : public IOponn
+{
 public:
 	bool Attach(const char* windowTitle);
 
@@ -29,7 +30,7 @@ public:
 
 	bool Attach(DWORD processId);
 
-	void Detach();
+	bool Detach();
 
 	HMODULE GetModuleHandle(const char* moduleName, bool useCache = true);
 

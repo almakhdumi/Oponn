@@ -15,6 +15,9 @@ typedef bool (*OPONN_CALLBACK) (LPCONTEXT pContext);
 
 class IOponn {
 public:
+
+	virtual ~IOponn() {};
+
 	//Searches for a window with the given title and attaches to it
 	//Returns false on failure, true on success
 	virtual bool Attach(const char* windowTitle) = 0;
@@ -28,7 +31,7 @@ public:
 	virtual bool Attach(DWORD processId) = 0;
 
 	//Detaches from the current process
-	virtual void Detach() = 0;
+	virtual bool Detach() = 0;
 
 	//Returns the handlet of the given module, if it has been loaded
 	//Otherwise returns NULL
